@@ -1,2 +1,2 @@
 # blastfirmware
-The BLAST-TNG Firmware and Controll Software Repository
+The BLAST-TNG Firmware and Control Software Repository
