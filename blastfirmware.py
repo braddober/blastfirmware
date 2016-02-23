@@ -11,7 +11,7 @@ import logging
 import glob  
 import os
 import sys
-import valon_synth_glenn
+import valon_synth
 #sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 #from ValonSynth_interface import valonInterface
 from socket import *
@@ -20,7 +20,7 @@ from scipy import signal
 class roachInterface(object):
 	
 	def __init__(self):
-		self.v1 = valon_synth_glenn.Synthesizer('/dev/ttyUSB0')
+		self.v1 = valon_synth.Synthesizer('/dev/ttyUSB0')
 		self.v1.set_frequency(8,512,0.01) # DAC/ADC
 		self.dac_samp_freq = 512.0e6
 		self.fpga_samp_freq = 256.0e6
