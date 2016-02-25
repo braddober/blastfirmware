@@ -99,8 +99,6 @@ class pipeline(object):
 		return
   
 	def psd_corrected(self, chan):	
-		sig_on_mag = np.abs(self.ts_on[:,chan])
-		sig_off_mag = np.abs(self.ts_off[:,chan])
 		sig_on = self.phase_on[:,chan]
 		sig_off = self.svd.corrected_data[:,chan]
 		sig_off2 = self.phase_off[:,chan]
@@ -117,6 +115,7 @@ class pipeline(object):
 		plt.loglog(freq,psd_on,'r',label='unsubtracted')
 		plt.loglog(freq,psd_off,'black',alpha = 0.5, label='subtracted')
 		plt.loglog(freq,psd_off2,'g',alpha = 0.5, label='off_resonance')
+		plt.loglog(freq,6.25e-8*np.ones(len(psd_off2)),'r--',label='detector noise level')
 		plt.xlim(0.01,200)
 		plt.ylim(1e-13,1e-3)
 		plt.xlabel('Freq [Hz]')
@@ -124,10 +123,42 @@ class pipeline(object):
 		plt.legend()
 		plt.grid()
 		plt.tight_layout()
-		#plt.subplots_adjust(top=0.95)
+		plt.subplots_adjust(top=0.95)
 		plt.suptitle('Blast-TNG 250um array   2016-01-31   Channel %03d/%d'%(chan,self.nchan),fontsize='large')
 		plt.show()
-		return 
+		return
+
+	def psd_corrected_subset(self, index):
+		for chan in np.arange((index-1)*25,index*25):
+        		plt.subplot(5,5,chan-25*index+1)
+        		sig_on = self.phase_on[:,chan]
+        		sig_off = self.svd.corrected_data[:,chan]
+        		sig_off2 = self.phase_off[:,chan]
+        		nsamples = len(sig_on)
+        		time = 60.
+        		sample_rate = nsamples/time
+        		time,delta_t = np.linspace(0,time,nsamples,retstep=True)
+        		freq,delta_f = np.linspace(0,sample_rate/2.,nsamples/2+1,retstep=True)
+        		rf_freq = self.bb_freqs[chan]+self.lo_freqs
+        		halfway = len(self.lo_freqs)/2		
+        		psd_on  = delta_t/nsamples*np.abs(np.fft.rfft((sig_on)))**2
+        		psd_off = delta_t/nsamples*np.abs(np.fft.rfft((sig_off)))**2
+        		psd_off2 = delta_t/nsamples*np.abs(np.fft.rfft((sig_off2)))**2
+        		plt.loglog(freq,psd_on,'r',label='unsubtracted')
+        		plt.loglog(freq,psd_off,'black',alpha = 0.5, label='subtracted')
+        		plt.loglog(freq,psd_off2,'g',alpha = 0.5, label='off_resonance')
+        		plt.loglog(freq,6.25e-8*np.ones(len(psd_off2)),'r--',label='detector noise level')
+        		plt.xlim(0.01,200)
+        		plt.ylim(1e-13,1e-3)
+        		#plt.xlabel('Freq [Hz]')
+        		#plt.ylabel(r'PSD [rad$^{2}$ / Hz]')
+        		#plt.legend()
+        		plt.grid()
+        		#plt.tight_layout()
+        		#plt.subplots_adjust(top=0.95)
+        		plt.title('Chan %03d/%d'%(chan,self.nchan))
+		plt.show()
+		return
 
 	def loop_centers(self):
         	def least_sq_circle_fit(chan):
