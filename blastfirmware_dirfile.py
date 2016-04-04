@@ -17,10 +17,13 @@ import valon_synth_glenn
 from socket import *
 from scipy import signal
 import pygetdata as gd
+import RUDAT
 
 class roachInterface(object):
 	
 	def __init__(self):
+		self.rudat = RUDAT.Attenuator(RUDAT_PORT)
+
 		self.v1 = valon_synth_glenn.Synthesizer('/dev/ttyUSB4')
 		self.v1.set_frequency(8,512,0.01) # DAC/ADC
 		self.dac_samp_freq = 512.0e6
@@ -662,12 +665,28 @@ class roachInterface(object):
 		#plt.figure()
 		#plt.plot()
 		return
+	
+	def set_attenuation(self,attenuation):
+		self.rudat.set_atten(attenuation)
+		time.sleep(0.1)
+		assert self.rudat.get_atten() == attenuation
+		return
 
-	def target_sweep_dirfile(self, save_path = '/mnt/iqstream/dirfiles', write = True, span = 100.0e3):
+	def get_attenuation(self):
+		return self.rudat.get_atten()
+		
+	
+	def target_sweep_dirfile(self, save_path = '/mnt/iqstream/dirfiles', write = True, span = 100.0e3, attenuation=None):
+		if attenuation == None:
+                        attenuation = float(raw_input("Attenuation level [dB] ?"))
+                print "    Previous attenuation setting was %.1f dB"%self.get_attenuation()
+                self.set_atten(attenuation)
+		print "    Attenuation level is now %.1f dB"%attenuation
 		write = raw_input('Write tones? (y/n) ')
 		kid_freqs = np.load('/mnt/iqstream/last_kid_freqs.npy')
 		dirfile_dir = raw_input('dirfile dir ? ')
 		save_path = os.path.join(save_path, dirfile_dir+'_'+str(int(time.time())))
+
 		#kid_freqs = np.array(np.loadtxt('BLASTResonatorPositionsVer2.txt', delimiter=','))
 		center_freq = (np.max(kid_freqs) + np.min(kid_freqs))/2.   #Determine LO position to put tones centered around LO
 		self.v1.set_frequency(0,center_freq / (1.0e6), 0.01) # LO
@@ -700,6 +719,8 @@ class roachInterface(object):
 		for chan in range(1024):
 			dirf.add(gd.entry(gd.RAW_ENTRY,'I%04d'%chan,0,(gd.INT32,1)))
 			dirf.add(gd.entry(gd.RAW_ENTRY,'Q%04d'%chan,0,(gd.INT32,1)))
+		dirf.add(gd.entry(gd.CONST_ENTRY,'attenuation',0,(gd.FLOAT32,)))
+		dirf.put_constant('attenuation',attenuation)
 		dirf.close()
 		
 		f,i,q = self.sweep_lo_dirfile(Npackets_per = 10, channels = channels, center_freq = center_freq, span = span, bb_freqs=bb_freqs,  save_path = save_path)
