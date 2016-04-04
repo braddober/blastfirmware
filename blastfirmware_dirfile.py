@@ -678,9 +678,9 @@ class roachInterface(object):
 	
 	def target_sweep_dirfile(self, save_path = '/mnt/iqstream/dirfiles', write = True, span = 100.0e3, attenuation=None):
 		if attenuation == None:
-                        attenuation = float(raw_input("Attenuation level [dB] ?"))
-                print "    Previous attenuation setting was %.1f dB"%self.get_attenuation()
-                self.set_atten(attenuation)
+			attenuation = float(raw_input("Attenuation level [dB] ?"))
+		print "    Previous attenuation setting was %.1f dB"%self.get_attenuation()
+		self.set_atten(attenuation)
 		print "    Attenuation level is now %.1f dB"%attenuation
 		write = raw_input('Write tones? (y/n) ')
 		kid_freqs = np.load('/mnt/iqstream/last_kid_freqs.npy')
