@@ -5,50 +5,48 @@ import matplotlib
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 from scipy import optimize
-import svd_model
 y_formatter = matplotlib.ticker.ScalarFormatter(useOffset=False)
 
 class pipeline(object):
     
 	def __init__(self):
-		self.path = 'C:\\Users\\Dober\\Desktop\\NoiseStreams\\01312016'
-		self.option = 'IQ_Loops'
-		self.select = '04'
+		
+		self.path = '/mnt/iqstream'
+		self.option = 'target_sweeps'
+		sweep_dir = str(20.0)
 		#self.vna_path = 'vna_sweeps'
 		#self.target_path = 'target_sweeps'
-		self.datapath = os.path.join(self.path, self.option,self.select)
+		self.datapath = os.path.join(self.path, self.option, sweep_dir)
 		data_files=[f for f in sorted(os.listdir(self.datapath)) if f.endswith('.npy')]
 		I = np.array([np.load(os.path.join(self.datapath,f)) for f in data_files if f.startswith('I')])
 		Q = np.array([np.load(os.path.join(self.datapath,f)) for f in data_files if f.startswith('Q')])
 		self.lo_freqs = np.array([np.float(f[1:-4]) for f in data_files if f.startswith('I')])
-		self.fs=244 #set the sampling rate
-		self.chan_ts = I + 1j*Q #generates phase Timestreams
-		self.nchan = len(self.chan_ts[0]) #number of detector channels
+		#print f
+		self.chan_ts = I + 1j*Q
+		self.nchan = len(self.chan_ts[0])
 		self.cm = plt.cm.spectral(np.linspace(0.05,0.95,self.nchan))
 		self.i = self.chan_ts.real
 		self.q = self.chan_ts.imag
 		self.mag = np.abs(self.chan_ts)
 		self.phase = np.angle(self.chan_ts)
 		self.loop_centers() # returns self.centers
-		self.chan_ts_centered = self.chan_ts - self.centers #centered loops
-		self.rotations = np.angle(self.chan_ts_centered[self.chan_ts_centered.shape[0]/2]) #loop rotation angle
-		self.chan_ts_rotated = self.chan_ts_centered * np.exp(-1j*self.rotations) #rotated loops
-		self.phase_rotated = np.angle(self.chan_ts_rotated) #phase of rotated timestreams
-		self.ts_off = np.load(os.path.join(self.datapath,'timestreams/I750.27.npy')) + 1j*np.load(os.path.join(self.datapath,'timestreams/Q750.27.npy'))
-		self.ts_on = np.load(os.path.join(self.datapath,'timestreams/I750.57.npy')) + 1j*np.load(os.path.join(self.datapath,'timestreams/Q750.57.npy'))
-        	self.ts_on_centered = self.ts_on - self.centers
-        	self.ts_on_rotated = self.ts_on_centered *np.exp(-1j*self.rotations)
-        	self.bb_freqs=np.load(os.path.join(self.path,'last_bb_freqs.npy')) #baseband kid frequencies
-		self.i_off, self.q_off = self.ts_off.real, self.ts_off.imag
-		self.i_on, self.q_on = self.ts_on_rotated.imag, self.ts_on_rotated.imag
-		self.phase_off = np.angle(self.ts_off)	
-		self.phase_on = np.angle(self.ts_on_rotated)	#phase Timestream (centered and rotated)
-		self.svd = svd_model.SVDNoiseModel(self.phase_on,self.fs) #Glenn's common mode subtraction method
-		self.svd.construct_model(nfft=2**16)
+		self.chan_ts_centered = self.chan_ts - self.centers
+		self.rotations = np.angle(self.chan_ts_centered[self.chan_ts_centered.shape[0]/2])
+		self.chan_ts_rotated = self.chan_ts_centered * np.exp(-1j*self.rotations)
+		self.phase_rotated = np.angle(self.chan_ts_rotated)
+		#self.ts_off = np.load(os.path.join(self.datapath,'timestreams/I750.27.npy')) + 1j*np.load(os.path.join(self.datapath,'timestreams/Q750.27.npy'))
+		#self.ts_on = np.load(os.path.join(self.datapath,'timestreams/I750.57.npy')) + 1j*np.load(os.path.join(self.datapath,'timestreams/Q750.57.npy'))
+        	#self.ts_on_centered = self.ts_on - self.centers
+        	#self.ts_on_rotated = self.ts_on_centered *np.exp(-1j*self.rotations)
+        	self.bb_freqs=np.load(os.path.join(self.path,'last_bb_freqs.npy'))
+		#self.i_off, self.q_off = self.ts_off.real, self.ts_off.imag
+		#self.i_on, self.q_on = self.ts_on_rotated.imag, self.ts_on_rotated.imag
+		#self.phase_off = np.angle(self.ts_off)	
+		#self.phase_on = np.angle(self.ts_on_rotated)	
 		self.kid_freqs=np.load(os.path.join(self.path,'last_kid_freqs.npy'))
 		self.bb_freqs=np.load(os.path.join(self.path,'last_bb_freqs.npy'))
 		self.rf_freqs=np.load(os.path.join(self.path,'last_rf_freqs.npy'))
-		self.delta_lo = 2.5e3 #step size of LO?
+		self.delta_lo = 2.5e3
 		
 	def phase_scatter(self,chan):
 		fig = plt.figure()
@@ -86,79 +84,17 @@ class pipeline(object):
 		self.df_on = [ ((self.delta_i_on[chan] * self.di_df[chan]) + (self.delta_q_on[chan] * self.dq_df[chan]) / (self.di_df[chan]**2 + self.dq_df[chan]**2)) for chan in range(self.nchan)]
 		self.df_off = [ ((self.delta_i_off[chan] * self.di_df[chan]) + (self.delta_q_off[chan] * self.dq_df[chan]) / (self.di_df[chan]**2 + self.dq_df[chan]**2)) for chan in range(self.nchan)]
 		time = np.arange(0, len(self.i_off))/244.
-		frequ = np.arange(1, len(self.i_off)+1)*244./len(self.i_off) #frequency bins for power spectrum (should be 1/time - sampling rate/2)
-		plt.loglog((frequ)[1:], ((np.abs(np.fft.fft(self.df_off[channel]/self.kid_freqs[channel])))**2/len(self.i_off))[1:], label = r'$\Delta$f off', color = 'black')
-		plt.loglog((frequ[1:]), ((np.abs(np.fft.fft(self.df_on[channel]/self.kid_freqs[channel])))**2/len(self.i_off))[1:], label = r'$\Delta$f on', color = 'red', alpha = 0.5)
+		frequ = np.arange(1, len(self.i_off)+1)*244./len(self.i_off)
+		plt.plot(np.log10(frequ), np.log10((np.abs(np.fft.fft(self.df_off[channel]/self.kid_freqs[channel])))**2/len(self.i_off)), label = r'$\Delta$f off', color = 'black')
+		plt.plot(np.log10(frequ), np.log10((np.abs(np.fft.fft(self.df_on[channel]/self.kid_freqs[channel])))**2/len(self.i_off)), label = r'$\Delta$f on', color = 'red', alpha = 0.5)
 		#plt.plot(self.df_off[channel], color = 'b', label = 'off')
 		#plt.plot(self.df_on[channel], color= 'g', label = 'on')
 		plt.title(r'$\Delta$f, Channel = ' + str(channel))
-		plt.xlabel('freq (Hz)')
-		plt.ylabel(r'(ef/f$_{0}$)$^{2}$ (Hz)')
+		plt.xlabel('log$_{10}$ freq (Hz)')
+		plt.ylabel(r'log$_{10}$ (ef/f$_{0}$)$^{2}$ (Hz)')
 		plt.legend()
 		plt.show()
-		return
-  
-	def psd_corrected(self, chan):	
-		sig_on = self.phase_on[:,chan]
-		sig_off = self.svd.corrected_data[:,chan]
-		sig_off2 = self.phase_off[:,chan]
-		nsamples = len(sig_on)
-		time = 60.
-		sample_rate = nsamples/time
-		time,delta_t = np.linspace(0,time,nsamples,retstep=True)
-		freq,delta_f = np.linspace(0,sample_rate/2.,nsamples/2+1,retstep=True)
-		rf_freq = self.bb_freqs[chan]+self.lo_freqs
-		halfway = len(self.lo_freqs)/2		
-		psd_on  = delta_t/nsamples*np.abs(np.fft.rfft((sig_on)))**2
-		psd_off = delta_t/nsamples*np.abs(np.fft.rfft((sig_off)))**2
-		psd_off2 = delta_t/nsamples*np.abs(np.fft.rfft((sig_off2)))**2
-		plt.loglog(freq,psd_on,'r',label='unsubtracted')
-		plt.loglog(freq,psd_off,'black',alpha = 0.5, label='subtracted')
-		plt.loglog(freq,psd_off2,'g',alpha = 0.5, label='off_resonance')
-		plt.loglog(freq,6.25e-8*np.ones(len(psd_off2)),'r--',label='detector noise level')
-		plt.xlim(0.01,200)
-		plt.ylim(1e-13,1e-3)
-		plt.xlabel('Freq [Hz]')
-		plt.ylabel(r'PSD [rad$^{2}$ / Hz]')
-		plt.legend()
-		plt.grid()
-		plt.tight_layout()
-		plt.subplots_adjust(top=0.95)
-		plt.suptitle('Blast-TNG 250um array   2016-01-31   Channel %03d/%d'%(chan,self.nchan),fontsize='large')
-		plt.show()
-		return
-
-	def psd_corrected_subset(self, index):
-		for chan in np.arange((index-1)*25,index*25):
-        		plt.subplot(5,5,chan-25*index+1)
-        		sig_on = self.phase_on[:,chan]
-        		sig_off = self.svd.corrected_data[:,chan]
-        		sig_off2 = self.phase_off[:,chan]
-        		nsamples = len(sig_on)
-        		time = 60.
-        		sample_rate = nsamples/time
-        		time,delta_t = np.linspace(0,time,nsamples,retstep=True)
-        		freq,delta_f = np.linspace(0,sample_rate/2.,nsamples/2+1,retstep=True)
-        		rf_freq = self.bb_freqs[chan]+self.lo_freqs
-        		halfway = len(self.lo_freqs)/2		
-        		psd_on  = delta_t/nsamples*np.abs(np.fft.rfft((sig_on)))**2
-        		psd_off = delta_t/nsamples*np.abs(np.fft.rfft((sig_off)))**2
-        		psd_off2 = delta_t/nsamples*np.abs(np.fft.rfft((sig_off2)))**2
-        		plt.loglog(freq,psd_on,'r',label='unsubtracted')
-        		plt.loglog(freq,psd_off,'black',alpha = 0.5, label='subtracted')
-        		plt.loglog(freq,psd_off2,'g',alpha = 0.5, label='off_resonance')
-        		plt.loglog(freq,6.25e-8*np.ones(len(psd_off2)),'r--',label='detector noise level')
-        		plt.xlim(0.01,200)
-        		plt.ylim(1e-13,1e-3)
-        		#plt.xlabel('Freq [Hz]')
-        		#plt.ylabel(r'PSD [rad$^{2}$ / Hz]')
-        		#plt.legend()
-        		plt.grid()
-        		#plt.tight_layout()
-        		#plt.subplots_adjust(top=0.95)
-        		plt.title('Chan %03d/%d'%(chan,self.nchan))
-		plt.show()
-		return
+		return 
 
 	def loop_centers(self):
         	def least_sq_circle_fit(chan):
@@ -216,13 +152,117 @@ class pipeline(object):
 		return
 
 	def plot_loop_rotated(self,chan):
+		plt.figure(figsize = (20,20))
 		plt.title('IQ loop Channel = ' + str(chan) + ', centered and rotated')
-		plt.plot(self.chan_ts_rotated.real[:,chan],self.chan_ts_rotated.imag[:,chan],'x',color='black')
+		plt.plot(self.chan_ts_rotated.real[:,chan],self.chan_ts_rotated.imag[:,chan],'x',color='red',mew=2, ms=6)
 		plt.gca().set_aspect('equal')
 		plt.xlim(np.std(self.chan_ts_rotated.real[:,chan])*-3,np.std(self.chan_ts_rotated.real[:,chan])*3)
 		plt.ylim(np.std(self.chan_ts_rotated.imag[:,chan])*-3,np.std(self.chan_ts_rotated.imag[:,chan])*3)
 		plt.xlabel('I')
 		plt.ylabel('Q')
+		plt.show()
+		return
+
+	def multiplot(self, chan):
+		#for chan in range(self.nchan):
+		plt.figure(figsize=(24,8))
+		rf_freq=self.bb_freqs[chan]+self.lo_freqs
+		halfway=len(self.lo_freqs)/2
+		plt.subplot(131)
+		plt.plot(rf_freq/1e6,10*np.log10(self.mag[:,chan]),'b', linewidth = 3)
+		plt.xlabel('Frequency [MHz]', fontsize = 20)
+		plt.grid()
+
+		plt.subplot(132)
+		plt.plot(rf_freq/1e6,self.phase_rotated[:,chan],'b',linewidth = 3)
+		plt.xlabel('Frequency [MHz]', fontsize = 20)
+		plt.grid()
+		plt.subplot(133)
+		plt.plot(self.chan_ts_rotated[:,chan].real,self.chan_ts_rotated[:,chan].imag,'b',marker='x', linewidth = 2)
+	
+		plt.savefig(os.path.join(self.datapath,'psd%04drotated.png'%chan), bbox = 'tight')
+		#plt.savefig(os.path.join(d.datapath,'figures','psd%04d.svg'%i))
+		plt.clf()
+		print ' plotting ',chan,;sys.stdout.flush()
+		return
+			
+	def phase_response(self):
+		colormap = plt.cm.OrRd
+		attens = np.arange(19., 23., 1)
+		gradient = np.linspace(0.3, 1.0, len(attens))
+		fig, ax = plt.subplots(figsize = (20, 20))
+		chan = int(raw_input('chan #?'))
+		for atten in attens:
+			#ax.set_color_cycle(colormap(atten))
+			path = '/mnt/iqstream'
+			option = 'target_sweeps'
+			datapath = os.path.join(path,option,str(atten))
+			data_files=[f for f in sorted(os.listdir(datapath)) if f.endswith('.npy')]
+			I = np.array([np.load(os.path.join(datapath,f)) for f in data_files if f.startswith('I')])
+			Q = np.array([np.load(os.path.join(datapath,f)) for f in data_files if f.startswith('Q')])
+			lo_freqs = np.array([np.float(f[1:-4]) for f in data_files if f.startswith('I')])
+			chan_ts = I + 1j*Q
+			nchan = len(chan_ts[0])
+			i = chan_ts.real
+			q = chan_ts.imag
+			mag = np.abs(chan_ts)
+			phase = np.angle(chan_ts)
+			self.loop_centers() # returns self.centers
+			chan_ts_centered = chan_ts - self.centers
+			rotations = np.angle(chan_ts_centered[chan_ts_centered.shape[0]/2])
+			chan_ts_rotated = chan_ts_centered * np.exp(-1j*rotations)
+			phase_rotated = np.angle(chan_ts_rotated)
+			
+			rf_freq = self.bb_freqs[chan] + lo_freqs
+			ax.plot(rf_freq/1.0e6,phase_rotated[:,chan], linewidth = 3, color = colormap(gradient[np.where(attens == atten)][0]), label =str(atten))
+			#ax.plot(rf_freq/1.0e6,chan_ts_rotated[:,chan], linewidth = 3, color = colormap(gradient[np.where(attens == atten)][0]), label =str(atten))
+		ax.set_title('Chan ' + str(chan) + ' Phase response vs Input Atten (dB)')
+		ax.tick_params(axis='y', labelsize=20)
+		ax.tick_params(axis='x', labelsize=20)
+		ax.set_xlabel('Frequency [MHz]', fontsize = 20)
+		ax.set_ylabel('Phase [rad]', fontsize = 20)
+		ax.legend(loc = 'lower left', fontsize = 20)
+		plt.grid()
+		plt.show()
+		return
+  
+	def atten_loops(self):
+		colormap = plt.cm.OrRd
+		attens = np.arange(19., 23., 1)
+		gradient = np.linspace(0.3, 1.0, len(attens))
+		fig, ax = plt.subplots(figsize = (20, 20))
+		chan = int(raw_input('chan #?'))
+		for atten in attens:
+			print chan      
+			#ax.set_color_cycle(colormap(atten))
+			path = '/mnt/iqstream'
+			option = 'target_sweeps'
+			datapath = os.path.join(path,option,str(atten))
+			data_files=[f for f in sorted(os.listdir(datapath)) if f.endswith('.npy')]
+			I = np.array([np.load(os.path.join(datapath,f)) for f in data_files if f.startswith('I')])
+			Q = np.array([np.load(os.path.join(datapath,f)) for f in data_files if f.startswith('Q')])
+			lo_freqs = np.array([np.float(f[1:-4]) for f in data_files if f.startswith('I')])
+			chan_ts = I + 1j*Q
+			nchan = len(chan_ts[0])
+			i = chan_ts.real
+			q = chan_ts.imag
+			mag = np.abs(chan_ts)
+			phase = np.angle(chan_ts)
+			self.loop_centers() # returns self.centers
+			chan_ts_centered = chan_ts - self.centers
+			rotations = np.angle(chan_ts_centered[chan_ts_centered.shape[0]/2])
+			chan_ts_rotated = chan_ts_centered * np.exp(-1j*rotations)
+			phase_rotated = np.angle(chan_ts_rotated)			
+			rf_freq = self.bb_freqs[chan] + lo_freqs
+			ax.plot(chan_ts_rotated.real[:,chan], chan_ts_rotated.imag[:,chan], linewidth = 3, color = colormap(gradient[np.where(attens == atten)][0]), label =str(atten))
+		ax.set_title('Chan ' + str(chan) + ' IQ Loop vs Input Atten (dB)')
+		ax.tick_params(axis='y', labelsize=20)
+		ax.tick_params(axis='x', labelsize=20)
+		ax.set_xlabel('I', fontsize = 20)
+		ax.set_ylabel('Q', fontsize = 20)
+		ax.legend(loc = 'lower left', fontsize = 20)
+		ax.axis('equal')
+		plt.grid()
 		plt.show()
 		return
 
@@ -288,5 +328,13 @@ class pipeline(object):
 		plt.suptitle('Blast-TNG 250um array   2016-01-31   Channel %03d/%d'%(chan,self.nchan),fontsize='large')
 		plt.show()
 		return
-  
-p=pipeline()
+
+
+	def main(self):
+		#self.phase_response()
+		#self.atten_loops()
+		return
+
+if __name__=='__main__':
+	p = pipeline()
+	p.main()
